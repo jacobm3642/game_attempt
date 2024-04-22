@@ -6,6 +6,9 @@
 #include <stdbool.h>
 
 #include "./include/utils.h"
+#include "./include/window.h"
+
+bool running = true;
 
 char *read_shader(char *file) {
   stringStream *ss = initStringStream();
@@ -14,8 +17,6 @@ char *read_shader(char *file) {
   free(ss);
   return shader;
 }
-
-bool running = true;
 
 GLuint createShader(GLenum shaderType, const char* source) {
     GLuint shader = glCreateShader(shaderType);
@@ -65,8 +66,8 @@ GLuint createProgram(GLuint vertexShader, GLuint fragmentShader) {
 }
 
 void drawTriangle() {
-    char *vertexShaderSource = read_shader("tri.vert");
-    char *fragmentShaderSource = read_shader("tri.frag");
+    char *vertexShaderSource = read_shader("shaders/tri.vert");
+    char *fragmentShaderSource = read_shader("shaders/tri.frag");
     GLuint vertexShader = createShader(GL_VERTEX_SHADER, vertexShaderSource);
     GLuint fragmentShader = createShader(GL_FRAGMENT_SHADER, fragmentShaderSource);
 
@@ -84,6 +85,8 @@ void drawTriangle() {
         return;
     }
 
+    free(vertexShaderSource);
+    free(fragmentShaderSource);
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
 
@@ -116,9 +119,12 @@ void drawTriangle() {
 
 void rendering_pass(Display *display, XEvent *event, GLXContext glc, Window window) {
   glXMakeCurrent(display, window, glc);
-  glClearColor(0.2f, 0.3f, 0.4f, 1.0f);
+  glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
   glClear(GL_COLOR_BUFFER_BIT);
+
+  // rendering goes right here VVVV
   drawTriangle();
+
   glXSwapBuffers(display, window);
 }
 
@@ -143,70 +149,15 @@ void handleEvent(Display *display, XEvent *event, GLXContext glc, Window window)
 }
 
 int main() {
-    Display *display;
-    Window window;
-    int screen;
-    GLint att[] = { GLX_RGBA, GLX_DEPTH_SIZE, 24, GLX_DOUBLEBUFFER, None };
-    XVisualInfo *vi;
-    Colormap cmap;
-    XSetWindowAttributes swa;
-    GLXContext glc;
-
-    // Open a connection to the X server
-    display = XOpenDisplay(NULL);
-    if (display == NULL) {
-        fprintf(stderr, "Cannot open display\n");
-        exit(1);
-    }
-
-    // Get the screen
-    screen = DefaultScreen(display);
-
-    // Get a suitable visual
-    vi = glXChooseVisual(display, screen, att);
-    if (vi == NULL) {
-        fprintf(stderr, "No suitable visual found\n");
-        exit(1);
-    }
-    cmap = XCreateColormap(display, RootWindow(display, vi->screen), vi->visual, AllocNone);
-
-    // Set window attributes
-    swa.colormap = cmap;
-    swa.event_mask = ExposureMask | KeyPressMask;
-
-    // Create a window
-    window = XCreateWindow(display, RootWindow(display, screen), 10, 10, 1080, 720, 0,
-                           vi->depth, InputOutput, vi->visual, CWColormap | CWEventMask, &swa);
-
-    // Set the window title
-    XSetStandardProperties(display, window, "Test Window", "Test Window", None, NULL, 0, NULL);
-
-    // Map the window to make it visible
-    XMapWindow(display, window);
-
-    // Create an OpenGL context
-    glc = glXCreateContext(display, vi, NULL, GL_TRUE);
-    glXMakeCurrent(display, window, glc);
-
-    // Initialize GLEW
-    glewExperimental = GL_TRUE;
-    GLenum err = glewInit();
-    if (err != GLEW_OK) {
-        fprintf(stderr, "Error initializing GLEW: %s\n", glewGetErrorString(err));
-        exit(1);
-    }
-
+    WindowData *data = startWindow();
+    
     XEvent event;
     while (running) {
-      XNextEvent(display, &event);
-      handleEvent(display, &event, glc, window);
+      XNextEvent(data->display, &event);
+      handleEvent(data->display, &event, data->glc, data->window);
     }
-    // Clean up
-    glXMakeCurrent(display, None, NULL);
-    glXDestroyContext(display, glc);
-    XFreeColormap(display, cmap);
-    XDestroyWindow(display, window);
-    XCloseDisplay(display);
+
+    cleanup(data);
 
     return 0;
 }

@@ -54,4 +54,3 @@ void readInFile(stringStream *ss, char *fileName) {
   }
   fclose(fptr);
 }
-
